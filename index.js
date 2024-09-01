@@ -23,15 +23,22 @@ const client = new Client({
   database: process.env.DB_DATABASE,
 });
 
-(async function connectDB() {
-  try {
-    await client.connect();
-    console.log("Postgres DB connected !!");
-    await client.query(createTableQuery);
-  } catch (error) {
-    console.error("Error occurred:", error);
+(async function(maxAttempts = 5, delay = 5000) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await client.connect();
+      console.log("Postgres DB connected !!");
+      await client.query(createTableQuery);
+      return;
+    } catch (err) {
+      console.error(`Attempt ${attempt} failed. Retrying in ${delay}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
   }
-})();
+  console.error("Max attempts reached. Could not connect to the database.");
+  process.exit(1);
+})()
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -49,8 +56,8 @@ app.get("/:shorturl", async (req, res) => {
 
     const { rows } = await client.query(fetchSingleQuery([shorturl]));
     if (!rows.length) return res.status(404).send("URL not found");
-    const data = rows[0]
-    await client.query(updateQuery(data.id, [data.clicks+=1]))
+    const data = rows[0];
+    await client.query(updateQuery(data.id, [(data.clicks += 1)]));
 
     res.redirect(data.original_url);
   } catch (error) {
@@ -60,7 +67,7 @@ app.get("/:shorturl", async (req, res) => {
 
 app.post("/shorten", async (req, res) => {
   const { url } = req.body;
-  const short_url = shortid.generate()
+  const short_url = shortid.generate();
   const query = insertQuery([url, short_url]);
   await client.query(query);
   res.redirect("/");
