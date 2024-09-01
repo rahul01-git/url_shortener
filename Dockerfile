@@ -1,5 +1,7 @@
 FROM node:20
 
+RUN useradd -ms /bin/bash nodeuser
+
 WORKDIR /usr/src/app
 
 COPY package*.json ./
@@ -10,5 +12,6 @@ COPY . .
 
 EXPOSE 3000
 
-CMD ["node", "index.js"]
+USER nodeuser
 
+CMD ["node", "index.js"]
